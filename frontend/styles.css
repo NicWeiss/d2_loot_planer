@@ -101,8 +101,6 @@ svg text { font-family: var(--f-body); }
 .calc .out { font-family: var(--f-mono); font-size: 15px; }
 
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
-.notes { font-size: 13px; color: var(--muted); max-width: 80ch; display: grid; gap: 6px; }
-.notes p { margin: 0; }
 details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .empty { padding: 16px; color: var(--muted); }
 @media (max-width: 520px) { h1 { font-size: 24px; } .kpi .v { font-size: 17px; } }
@@ -162,6 +160,9 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wra
 #cross th.row { position: sticky; left: 0; z-index: 1; text-align: left; }
 #cross td.self { color: var(--muted); }
 #cross td.base, #cross th.base { background: var(--rune-soft); }
-details.notes > summary { font-family: var(--f-display); font-size: 15px; font-weight: 700; color: var(--fg); }
-details.notes[open] > summary { margin-bottom: 6px; }
 @media (max-width: 520px) { .menu { position: fixed; top: 64px; left: 16px; right: 16px; width: auto; } }
+.about { max-width: 80ch; gap: 10px; }
+.about h3 { margin-top: 8px; }
+.about p, .about ul { margin: 0; color: var(--fg); }
+.about ul { padding-left: 1.2em; display: grid; gap: 6px; }
+.site-foot { font-size: 12px; border-top: 1px solid var(--line); padding-top: 14px; }

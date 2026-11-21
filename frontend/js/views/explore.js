@@ -8,9 +8,12 @@ export const initExplore = c => {
   ctx = c;
   $("t-input").addEventListener("input", async e => { const c = await resolve(e.target.value); if (c && c !== state.target) ctx.setTarget(c, true); });
   $("t-input").addEventListener("change", async e => { const c = await resolve(e.target.value); if (c) ctx.setTarget(c); else e.target.value = await targetName(state.target); });
-  $("t-qty").addEventListener("input", renderRoute);
-  for (const id of ["q-stash", "q-keys", "q-pk1", "q-pk2", "q-pk3", "q-cube"]) $(id).addEventListener("change", renderRoute);
-  $("q-effort").addEventListener("input", renderRoute);
+  const both = () => { renderRoute(); renderStrategy(); };
+  $("t-qty").addEventListener("input", both);
+  for (const id of ["q-stash", "q-keys", "q-pk1", "q-pk2", "q-pk3"]) $(id).addEventListener("change", renderRoute);
+  $("q-cube").addEventListener("change", both);
+  $("q-stash").addEventListener("change", renderStrategy);
+  $("q-effort").addEventListener("input", both);
   $("map-all").onchange = renderMap;
 };
 
@@ -99,16 +102,36 @@ export async function renderOffers() {
       <td>${link(o.url, "открыть")}</td></tr>`).join("") + "</tbody>";
 }
 
+// ---- shared by the route and the strategy
+const routeQty = () => Math.max(1, Math.min(20, +$("t-qty").value || 1));
+const routeParams = () => ({
+  target: state.target, qty: routeQty(), stashMode: $("q-stash").value, useCube: $("q-cube").checked,
+  keys: $("q-keys").checked ? ["pk1", "pk2", "pk3"].filter(c => $("q-" + c).checked) : [],
+  effort: Math.max(0, Math.min(1, +$("q-effort").value || 0)),
+});
+const stepKind = s => s.type !== "cube" ? s.type.toUpperCase() : /^cube:cr/.test(s.id) ? "КРАФТ" : "КУБ";
+function stepsTable(steps, items, showAvail) {
+  const row = s => {
+    const bad = showAvail && s.available != null && s.times > s.available;
+    return `<tr${bad ? ' style="background: var(--bad-soft)"' : ""}>
+      <td><span class="tag"${s.type === "cube" ? ' style="color: var(--rune); border-color: var(--rune)"' : ""}>${stepKind(s)}</span>${s.check ? ' <span class="tag" title="У покупателя есть требования к свойствам">требования</span>' : ""}</td>
+      <td class="give">${esc(fmtD(s.give, items))}</td><td class="get">${esc(fmtD(s.get, items))}</td>
+      <td class="r num">${s.times}</td>${showAvail ? `<td class="r num">${s.available == null ? "∞" : s.available}</td>` : ""}
+      <td>${s.url ? link(s.url, "лот") : ""}</td></tr>`;
+  };
+  return `<div class="tbl-wrap"><table><thead><tr><th></th><th>Отдаёшь</th><th>Получаешь</th><th class="r">Раз</th>${showAvail ? '<th class="r">Лотов есть</th>' : ""}<th></th></tr></thead><tbody>${steps.map(row).join("")}</tbody></table></div>`;
+}
+const bottlenecks = (res, items) => res.bottlenecks.map(b => b.kind === "stash"
+  ? `не хватает <b>${fmtN(b.missing)}× ${esc(label(b.item, items))}</b>`
+  : `лот «${esc(fmtD(b.step.give, items))} → ${esc(fmtD(b.step.get, items))}» нужен ${b.step.times} раз, а есть ${b.step.available}`);
+
 // ---- route from the stash
 export async function renderRoute() {
-  const ok = latest("route"), t = state.target;
-  const qty = Math.max(1, Math.min(20, +$("t-qty").value || 1));
-  const keys = $("q-keys").checked ? ["pk1", "pk2", "pk3"].filter(c => $("q-" + c).checked) : [];
+  const ok = latest("route"), t = state.target, qty = routeQty();
   const t0 = performance.now();
   let d;
   try {
-    d = await api.route(state.realm, { target: t, qty, stashMode: $("q-stash").value, keys, useCube: $("q-cube").checked,
-                                        effort: Math.max(0, Math.min(1, +$("q-effort").value || 0)) });
+    d = await api.route(state.realm, routeParams());
   } catch (e) {
     if (ok()) $("route-out").innerHTML = `<div class="target"><span class="err">${esc(e.message)}</span></div>`;
     return;
@@ -130,24 +153,13 @@ export async function renderRoute() {
     return;
   }
   const p = res.paper, over = p.steps.filter(s => s.available != null && s.times > s.available);
-  const row = (s, showAvail) => {
-    const bad = showAvail && s.available != null && s.times > s.available;
-    return `<tr${bad ? ' style="background: var(--bad-soft)"' : ""}>
-      <td><span class="tag"${s.type === "cube" ? ' style="color: var(--rune); border-color: var(--rune)"' : ""}>${s.type === "cube" ? "КУБ" : s.type.toUpperCase()}</span>${s.check ? ' <span class="tag" title="У покупателя есть требования к свойствам">требования</span>' : ""}</td>
-      <td class="give">${esc(fmtD(s.give, items))}</td><td class="get">${esc(fmtD(s.get, items))}</td>
-      <td class="r num">${s.times}</td>${showAvail ? `<td class="r num">${s.available == null ? "∞" : s.available}</td>` : ""}
-      <td>${s.url ? link(s.url, "лот") : ""}</td></tr>`;
-  };
-  const head = showAvail => `<thead><tr><th></th><th>Отдаёшь</th><th>Получаешь</th><th class="r">Раз</th>${showAvail ? '<th class="r">Лотов есть</th>' : ""}<th></th></tr></thead>`;
   const verdict = res.ok
     ? `<span class="pill good">собирается: ${res.steps.length} ${plural(res.steps.length, "сделка", "сделки", "сделок")}</span>`
     : `<span class="pill bad">реально не собрать</span>`;
   const count = dd => Object.values(dd).reduce((s, x) => s + x, 0);
   const keysTxt = dd => count(dd) ? `${count(dd)} ${plural(count(dd), "ключ", "ключа", "ключей")}` : "";
   const spent = [fmtD(res.poolUsed, items), count(res.unlimitedSpent) ? "ключи: " + fmtD(res.unlimitedSpent, items) : ""].filter(Boolean).join(" · ");
-  const bott = res.bottlenecks.map(b => b.kind === "stash"
-    ? `не хватает <b>${fmtN(b.missing)}× ${esc(label(b.item, items))}</b>`
-    : `лот «${esc(fmtD(b.step.give, items))} → ${esc(fmtD(b.step.get, items))}» нужен ${b.step.times} раз, а есть ${b.step.available}`);
+  const bott = bottlenecks(res, items);
   out.innerHTML = `
     <div class="target">
       <div style="display:flex; flex-wrap:wrap; gap:8px 16px; align-items:baseline; justify-content:space-between">
@@ -165,11 +177,51 @@ export async function renderRoute() {
       <span class="muted" style="font-size:11px">Посчитано за ${ms} мс.</span>
     </div>
     ${res.ok ? `<div style="display:grid; gap:8px"><span class="label">Реальная цепочка, по порядку</span>
-      <div class="tbl-wrap"><table>${head(false)}<tbody>${res.steps.map(s => row(s, false)).join("")}</tbody></table></div></div>` : ""}
+      ${stepsTable(res.steps, items, false)}</div>` : ""}
     <details${res.ok ? "" : " open"}><summary>Цепочка на бумаге (${p.steps.length} ${plural(p.steps.length, "шаг", "шага", "шагов")}${over.length ? `, ${over.length} ${plural(over.length, "лот нужен", "лота нужны", "лотов нужны")} чаще, чем есть` : ""})</summary>
-      <div class="tbl-wrap" style="margin-top:8px"><table>${head(true)}<tbody>${p.steps.map(s => row(s, true)).join("")}</tbody></table></div>
+      <div style="margin-top:8px">${stepsTable(p.steps, items, true)}</div>
       ${Object.keys(p.missing).length ? `<span class="give" style="font-size:12px">Не из чего сделать: ${esc(fmtD(p.missing, items))}</span>` : ""}
     </details>`;
+}
+
+// ---- strategy: what to farm to reach the target
+export async function renderStrategy() {
+  const ok = latest("strategy"), out = $("strategy-out"), qty = routeQty();
+  out.innerHTML = '<span class="muted">считаю варианты фарма…</span>';
+  let d;
+  try {
+    d = await api.strategy(state.realm, routeParams());
+  } catch (e) {
+    if (ok()) out.innerHTML = `<span class="err">${esc(e.message)}</span>`;
+    return;
+  }
+  if (!ok()) return;
+  const items = d.items, name = label(state.target, items);
+  const farmTxt = s => s.farm.map(f => `<b>${fmtN(f.need, 1)}× ${esc(short(f.code))}</b>${f.have ? ` <span class="muted">(ещё ${fmtN(f.have, 1)} есть)</span>` : ""}`).join(" + ");
+  const real = d.strategies.filter(s => s.ok), paper = d.strategies.filter(s => !s.ok);
+  const chain = s => `<details><summary>цепочка: ${s.trades} ${plural(s.trades, "шаг", "шага", "шагов")}</summary>
+    <div style="margin-top:8px">${s.ok ? stepsTable(s.route.steps, items, false) : stepsTable(s.route.paper.steps, items, true)}</div></details>`;
+  const table = (list, withBott) => `<div class="tbl-wrap"><table><thead><tr><th>Нафармить</th><th class="r">≈ Ist</th><th>${withBott ? "Что мешает" : "Обмены"}</th></tr></thead><tbody>` +
+    list.map(s => `<tr><td>${s.mix ? '<span class="tag">микс</span> ' : ""}${farmTxt(s)}</td><td class="r num">${fmtN(s.farmIst)}</td>
+      <td style="min-width:220px">${withBott ? `<span class="muted" style="font-size:12px">${bottlenecks(s.route, items).slice(0, 2).join("; ") || "лотов не хватает"}</span>` : ""}${chain(s)}</td></tr>`).join("") + "</tbody></table></div>";
+
+  let html = d.plainOK ? `<span class="muted">Маршрут выше уже собирается из тайника без фарма. Ниже — что можно добыть вместо того, чтобы тратить тайник.</span>` : "";
+  if (real.length) {
+    html += `<div style="display:grid; gap:8px"><span class="label">Собирается из живых лотов</span>${table(real.slice(0, 8), false)}</div>`;
+  } else {
+    html += `<div class="target" style="gap:8px"><h3>Из живых лотов не собрать даже с фармом</h3>
+      <span class="muted">Лоты, которые превращают фарм в ${esc(name)}, одноразовые или их нет. Надёжнее нафармить и выставить свой WTB по честной цене (ниже).</span></div>`;
+    if (paper.length) html += `<details><summary>На бумаге получилось бы так (${paper.length})</summary><div style="margin-top:8px">${table(paper.slice(0, 6), true)}</div></details>`;
+  }
+  if (d.wtb.length) {
+    html += `<div style="display:grid; gap:8px"><span class="label">Свой WTB на ${qty}× ${esc(name)} по честной цене${d.fair != null ? ` (${fmtN(qty * d.fair)} Ist)` : ""}</span>
+      <div class="tbl-wrap"><table><thead><tr><th>Платить</th><th class="r">Нужно</th><th class="r">Есть</th><th class="r">Дофармить</th><th class="r" title="Сколько объявлений сейчас принимают это в оплату">Берут в оплату</th></tr></thead><tbody>` +
+      d.wtb.map(w => `<tr><td>${esc(nm(w.code))}</td><td class="r num">${fmtN(w.qty, 1)}</td><td class="r num">${w.have ? fmtN(w.have, 1) : ""}</td>
+        <td class="r num"><b>${w.need > 0 ? fmtN(w.need, 1) : "хватает"}</b></td><td class="r num">${w.acceptedBy}</td></tr>`).join("") +
+      `</tbody></table></div></div>`;
+  }
+  if (!d.stash.loaded) html += `<span class="muted">Тайник не загружен: считается, что фармить нужно всё с нуля.</span>`;
+  out.innerHTML = html || '<span class="muted">Фармовые ресурсы к этой цели не ведут.</span>';
 }
 
 // ---- exchange map: layout only; nodes and edges (with fair rates) come from the API
@@ -253,5 +305,5 @@ export async function renderMap() {
 }
 
 export async function renderExplore() {
-  await Promise.all([renderPicker(), renderTargetCard(), renderRoute(), renderOffers(), renderMap()]);
+  await Promise.all([renderPicker(), renderTargetCard(), renderRoute(), renderStrategy(), renderOffers(), renderMap()]);
 }

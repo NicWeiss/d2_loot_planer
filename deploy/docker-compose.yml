@@ -1,0 +1,19 @@
+# Production: copied to the server by `make deploy`. Only this one service lives in this compose project.
+version: "3.6"
+
+services:
+  app:
+    image: harbor.nic-weiss.tech/d2_bt_analytics/app:${VERSION}
+    container_name: prod_d2_bt_analytics
+    restart: always
+    ports:
+      - "127.0.0.1:8190:8000"  # behind nginx on the host
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

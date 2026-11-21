@@ -28,6 +28,7 @@ export const api = {
   target: (realm, code) => call("GET", realmPath(realm, "target" + q(code))),
   offers: (realm, code) => call("GET", realmPath(realm, "offers" + q(code))),
   route: (realm, params) => call("POST", realmPath(realm, "route"), params),
+  strategy: (realm, params) => call("POST", realmPath(realm, "strategy"), params),
   rates: realm => call("GET", realmPath(realm, "rates")),
   map: realm => call("GET", realmPath(realm, "map")),
   deals: realm => call("GET", realmPath(realm, "deals")),

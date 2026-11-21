@@ -3,7 +3,7 @@ import { api } from "./js/api.js";
 import { $, esc, rlName, segButtons, setNames, store, when } from "./js/fmt.js";
 import { TABS, state, targets } from "./js/state.js";
 import { deals, renderDeals } from "./js/views/deals.js";
-import { initExplore, renderExplore, renderMap, renderOffers, renderPicker, renderRoute, renderTargetCard } from "./js/views/explore.js";
+import { initExplore, renderExplore, renderMap, renderOffers, renderPicker, renderRoute, renderStrategy, renderTargetCard } from "./js/views/explore.js";
 import { initRates, renderRates } from "./js/views/rates.js";
 import { renderStash } from "./js/views/stash.js";
 
@@ -11,9 +11,12 @@ let busy = false, sawRunning = false;
 
 // ---- rendering
 function renderHeader() {
-  const realm = state.meta.realms.find(r => r.key === state.realm), c = realm?.counts;
+  const realm = state.meta.realms.find(r => r.key === state.realm), c = realm?.counts, s = state.meta.season;
+  const season = s && realm?.key.endsWith(" ladder")
+    ? ` · сезон с ${new Date(s.start).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}, день ${Math.floor((Date.now() - Date.parse(s.start)) / 864e5) + 1}`
+    : "";
   $("stamp").textContent = state.meta.fetchedAt
-    ? `Снимок ${new Date(state.meta.fetchedAt).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}${c ? ` · ${c.active} живых и ${c.completed} завершённых сделок валюта-на-валюту` : ""}`
+    ? `Снимок ${new Date(state.meta.fetchedAt).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}${c ? ` · ${c.active} живых и ${c.completed} завершённых сделок валюта-на-валюту` : ""}${season}`
     : "Снимка рынка ещё нет";
   segButtons($("realm-seg"), state.meta.realms.map(r => [r.key, rlName(r.key) + (state.stash?.realms?.includes(r.key) ? " · мой тайник" : "")]),
     state.realm, k => { state.realm = k; render(); });
@@ -33,7 +36,7 @@ async function renderTabs() {
 
 // only the visible tab is drawn
 function renderPanel() {
-  const show = { map: renderExplore, stash: renderStash, rates: renderRates, deals: renderDeals }[state.tab];
+  const show = { map: renderExplore, stash: renderStash, rates: renderRates, deals: renderDeals, about: async () => {} }[state.tab];
   return show().catch(showError);
 }
 
@@ -57,7 +60,7 @@ function setTarget(code, fromInput = false) {
   store.set("target", code);
   if (state.tab !== "map") return showTab("map");
   if (!fromInput) renderPicker();
-  Promise.all([renderTargetCard(), renderRoute(), renderOffers(), renderMap()]).catch(showError);
+  Promise.all([renderTargetCard(), renderRoute(), renderStrategy(), renderOffers(), renderMap()]).catch(showError);
 }
 
 function showTab(t) {
@@ -71,7 +74,9 @@ function showTab(t) {
 // ---- data menu
 function renderMenu() {
   const job = state.meta.job;
-  $("mk-stamp").textContent = state.meta.fetchedAt ? `Снимок от ${when(state.meta.fetchedAt)}` : "Снимка ещё нет";
+  const auto = state.meta.refreshHours > 0 ? `Обновляется автоматически раз в ${+state.meta.refreshHours.toFixed(1)} ч.` : "";
+  $("mk-stamp").textContent = (state.meta.fetchedAt ? `Снимок от ${when(state.meta.fetchedAt)}. ` : "Снимка ещё нет. ") + auto;
+  $("mk-refresh").closest(".row").hidden = !state.meta.admin;  // refreshing by hand is for the admin only
   $("mk-refresh").disabled = !!job?.running;
   $("mk-status").innerHTML = job?.running ? `обновляю… <span class="num">${esc(job.log.at(-1) || "")}</span>`
     : job?.error ? `<span class="err">не вышло: ${esc(job.error)}</span>` : "";
@@ -88,6 +93,7 @@ const stashMsg = html => { $("st-status").innerHTML = html; renderMenu(); };
 
 async function loadStashHeader() {
   state.stash = await api.stash(state.realm);
+  state.meta.admin = !!state.stash.admin;  // signing in or resetting may change it
   if (state.stash.loaded && !state.stash.realms.includes(state.realm)) {
     const r = state.stash.realms.find(k => state.meta.realms.some(x => x.key === k));
     if (r) state.realm = r;

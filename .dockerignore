@@ -1,8 +1,6 @@
-.venv
 .git
 .claude
 data
-tests
-**/__pycache__
-**/*.pyc
-.pytest_cache
+deploy
+**/*_test.go
+internal/testkit

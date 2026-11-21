@@ -2,7 +2,7 @@
 import { api } from "./api.js";
 import { store } from "./fmt.js";
 
-export const TABS = ["map", "stash", "rates", "deals"];
+export const TABS = ["map", "stash", "rates", "deals", "about"];
 
 export const state = {
   meta: null,

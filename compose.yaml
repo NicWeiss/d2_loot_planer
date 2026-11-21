@@ -1,7 +1,7 @@
 services:
   loot-planner:
     build: .
-    image: loot-planner:latest
+    image: ${IMAGE:-loot-planner}:${VERSION:-latest}
     ports:
       - "8000:8000"
     volumes:
