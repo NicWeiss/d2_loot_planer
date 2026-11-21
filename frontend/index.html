@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Карта обмена</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral+SC:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" type="module"></script>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="meta">
+      <span class="label">Blizzless · оффлайн-трейд</span>
+      <h1>Карта обмена</h1>
+      <span class="muted" id="stamp"></span>
+    </div>
+    <div class="seg" role="group" aria-label="Режим игры" id="realm-seg"></div>
+    <button class="gear" id="gear" type="button" aria-label="Данные: маркет и тайник" aria-expanded="false" aria-controls="menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+    <div class="menu" id="menu" hidden>
+      <div class="block">
+        <span class="label">Маркет</span>
+        <p id="mk-stamp" class="muted"></p>
+        <div class="row"><button class="btn" id="mk-refresh" type="button">Обновить маркет</button></div>
+        <p class="muted" id="mk-status" aria-live="polite"></p>
+      </div>
+      <div class="block">
+        <span class="label">Тайник</span>
+        <p id="st-who"></p>
+        <div class="row">
+          <button class="btn primary" id="st-refresh" type="button">Обновить тайник</button>
+          <button class="btn" id="st-file-btn" type="button">Из файла…</button>
+          <input type="file" id="st-file" accept="application/json,.json" hidden>
+          <button class="btn" id="st-reset" type="button">Сбросить</button>
+        </div>
+        <p class="muted" id="st-status" aria-live="polite"></p>
+      </div>
+    </div>
+  </header>
+
+  <dialog id="login">
+    <form>
+      <h3>Вход на blizzless.trade</h3>
+      <label>Логин<input name="login" autocomplete="username" required></label>
+      <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
+      <label class="check"><input type="checkbox" name="remember"> <span>Запомнить<br><span class="muted" style="font-size:12px">тайник потом обновляется без пароля</span></span></label>
+      <p class="why muted" id="login-why"></p>
+      <p class="err" id="login-msg" aria-live="polite" hidden></p>
+      <div class="row">
+        <button class="btn" type="button" id="login-cancel">Отмена</button>
+        <button class="btn primary" type="submit">Войти и выгрузить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <nav class="tabs" role="tablist" aria-label="Разделы" id="tabs">
+    <button type="button" role="tab" id="tab-map" data-tab="map" aria-controls="panel-map">Карта обмена</button>
+    <button type="button" role="tab" id="tab-stash" data-tab="stash" aria-controls="panel-stash">Мой тайник</button>
+    <button type="button" role="tab" id="tab-rates" data-tab="rates" aria-controls="panel-rates">Курс</button>
+    <button type="button" role="tab" id="tab-deals" data-tab="deals" aria-controls="panel-deals">Недооценённые объявления</button>
+  </nav>
+
+  <div class="panel" data-panel="map" role="tabpanel" id="panel-map" aria-labelledby="tab-map">
+  <div class="picker" role="search">
+    <label class="big" for="t-input">Цель</label>
+    <input id="t-input" list="t-list" autocomplete="off" placeholder="руна, ключ, шард или вещь" aria-describedby="t-hint">
+    <datalist id="t-list"></datalist>
+    <label class="muted" for="t-qty">штук</label>
+    <input id="t-qty" type="number" min="1" max="20" step="1" value="1">
+    <div class="quick" id="t-quick" aria-label="Быстрый выбор"></div>
+    <span class="muted" id="t-hint" style="font-size:12px"></span>
+  </div>
+
+  <section id="s-target">
+    <div class="target" id="target-card"></div>
+  </section>
+
+  <section id="route">
+    <div class="section-head">
+      <h2>Маршрут из моего тайника</h2>
+      <p class="muted">Самая дешёвая цепочка живых лотов и крафта в кубе из того, что у тебя есть. Свои уники и сеты решатель может продать по чужим WTB. «На бумаге» каждый лот повторяется сколько угодно, реальная сборка учитывает, что лоты одноразовые.</p>
+    </div>
+    <div class="calc">
+      <select id="q-stash" aria-label="Что брать из тайника">
+        <option value="all">весь тайник: валюта и вещи</option>
+        <option value="currency">из тайника только валюта</option>
+        <option value="gems">из тайника только камни для куба</option>
+        <option value="none">без тайника</option>
+      </select>
+      <label><input type="checkbox" id="q-keys"> ключи без ограничений:</label>
+      <label><input type="checkbox" id="q-pk1" checked> Terror</label>
+      <label><input type="checkbox" id="q-pk2" checked> Hate</label>
+      <label><input type="checkbox" id="q-pk3" checked> Destruction</label>
+      <label><input type="checkbox" id="q-cube" checked> крафт в кубе</label>
+      <label class="muted" for="q-effort">цена одной сделки, Ist</label>
+      <input id="q-effort" type="number" min="0" max="1" step="0.01" value="0.03">
+    </div>
+    <div id="route-out" style="display:grid; gap:14px"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Все живые предложения</h2>
+      <p class="muted" id="offers-hint"></p>
+    </div>
+    <div class="tbl-wrap" style="max-height: 520px; overflow: auto"><table id="offers"></table></div>
+  </section>
+
+  <section id="map-sec">
+    <div class="section-head">
+      <h2>Карта обменов</h2>
+      <p class="muted">По горизонтали — цена (лог-шкала), по строкам — тип валюты. Размер узла — сколько объявлений принимают эту валюту в оплату. Стрелка A → B: «отдаёшь A, получаешь B» по лучшему живому курсу. Нажми на узел, чтобы сделать его целью.</p>
+    </div>
+    <div class="map-box">
+      <div class="map-tools">
+        <label><input type="checkbox" id="map-all"> показать все связи</label>
+        <div class="legend">
+          <span><i style="background: var(--good)"></i>дешевле честной цены</span>
+          <span><i style="background: var(--edge)"></i>около честной</span>
+          <span><i style="background: var(--bad)"></i>дороже честной</span>
+        </div>
+      </div>
+      <div class="map-scroll"><svg id="map" viewBox="0 0 1000 560" role="img" aria-label="Граф обменов валют"></svg></div>
+      <div class="tip" id="map-tip"></div>
+    </div>
+  </section>
+  </div>
+
+  <div class="panel" data-panel="stash" role="tabpanel" id="panel-stash" aria-labelledby="tab-stash" hidden>
+    <section>
+      <div class="section-head">
+        <h2>Мой тайник</h2>
+        <div class="tools"><label for="base-stash">Считать в</label><select class="base-sel" id="base-stash"></select></div>
+      </div>
+      <p class="muted" id="mine-sum" style="margin:0"></p>
+      <div id="mine-body" style="display:grid; gap:28px; min-width:0">
+        <div class="kpis wide" id="mine-kpis"></div>
+        <section>
+          <div class="section-head">
+            <h3>Валюта</h3>
+            <p class="muted">«Продать сейчас» — лучший живой WTB, куда можно отдать одну штуку. Нажми на строку, чтобы сделать валюту целью на карте.</p>
+          </div>
+          <div class="tbl-wrap" style="max-height: 560px; overflow: auto"><table id="mine-cur"></table></div>
+        </section>
+        <section>
+          <div class="section-head">
+            <h3>Уники, сеты, рунворды</h3>
+            <p class="muted">Цена — медиана завершённых продаж вещей с тем же названием; свойства у копий разные, так что это ориентир.</p>
+          </div>
+          <div class="tbl-wrap" style="max-height: 480px; overflow: auto"><table id="mine-items"></table></div>
+        </section>
+        <details id="mine-other">
+          <summary id="mine-other-sum"></summary>
+          <div class="equiv" id="mine-other-list" style="margin-top:10px"></div>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel" data-panel="rates" role="tabpanel" id="panel-rates" aria-labelledby="tab-rates" hidden>
+    <section>
+      <div class="section-head">
+        <h2>Курс</h2>
+        <p class="muted">Честная цена — модель по всем сделкам валюта-на-валюту: завершённым и живым, со стороны продавцов и покупателей. «Купить от» — самый дешёвый живой WTS за штуку, «Продать до» — самый щедрый живой WTB. Разрыв между ними — спред; если продать можно дороже, чем купить, это арбитраж. Нажми на строку, чтобы сделать валюту целью.</p>
+      </div>
+      <div class="tools">
+        <label for="base-rates">Считать в</label><select class="base-sel" id="base-rates"></select>
+        <div class="seg small" role="group" aria-label="Группа" id="rates-group"></div>
+      </div>
+      <div class="tbl-wrap" style="max-height: 640px; overflow: auto"><table id="market"></table></div>
+    </section>
+    <section>
+      <div class="section-head">
+        <h2>Кросс-курсы</h2>
+        <p class="muted">Сколько единиц валюты из столбца дают за одну единицу из строки, по честной цене.</p>
+      </div>
+      <div class="tbl-wrap"><table id="cross"></table></div>
+    </section>
+  </div>
+
+  <div class="panel" data-panel="deals" role="tabpanel" id="panel-deals" aria-labelledby="tab-deals" hidden>
+  <section>
+    <div class="section-head">
+      <h2>Недооценённые объявления</h2>
+      <p class="muted">Живые лоты, где получаешь заметно больше, чем отдаёшь, по честным ценам. Только ликвидные позиции (≥15 наблюдений).</p>
+    </div>
+    <div class="tbl-wrap"><table id="deals"></table></div>
+  </section>
+  </div>
+
+  <details class="notes">
+    <summary>Как считается</summary>
+    <p>Цены подобраны робастной регрессией по сделкам валюта-на-валюту: завершённые сделки весят больше всего, живые объявления меньше, сделки, расходящиеся с моделью больше чем втрое, отбрасываются. Если в лоте несколько вариантов оплаты, считается, что покупатель платит самым дешёвым.</p>
+    <p>Слиток, сфера и искра связаны крафтом: 12 слитков = 1 сфера, 12 сфер = 1 искра. Их цены — доли цены искры. Мелкие сделки (на один ключ или Lem) весят меньше: в них цена упирается в самую мелкую монету.</p>
+    <p>В маршрутах участвует крафт рун в кубе: 3 → 1 до Pul, 2 → 1 с Pul и выше, начиная с Thul нужен камень. Token of Absolution собирается из четырёх эссенций (Suffering, Hatred, Terror, Destruction), поэтому токен в оценке не дороже их суммы. Рецепты стандартные для D2R, проверь, что на сервере они такие же.</p>
+    <p>Вещи с одним названием отличаются свойствами, поэтому купленная вещь бывает только конечной целью, а по чужому WTB решатель продаёт только твои собственные вещи. Для вещей в данные взяты 4 самых дешёвых живых лота.</p>
+    <p>Аукционы, золото и лоты с оплатой «любыми рунами» в расчёт не входят. Маркет обновляется с сайта по расписанию и кнопкой в меню за шестерёнкой.</p>
+  </details>
+</div>
+</body>
+</html>

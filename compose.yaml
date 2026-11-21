@@ -1,0 +1,16 @@
+services:
+  loot-planner:
+    build: .
+    image: loot-planner:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - loot-data:/data
+    environment:
+      MARKET_REFRESH_HOURS: "6"
+      # set to "true" when the app is served over HTTPS (behind a reverse proxy)
+      COOKIE_SECURE: "false"
+    restart: unless-stopped
+
+volumes:
+  loot-data:
